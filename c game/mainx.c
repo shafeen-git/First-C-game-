@@ -333,7 +333,7 @@ int main(void) {
                         elixirSpawnTimer += dt;
                         if (elixirSpawnTimer >= elixirSpawnInterval) {
                             elixirSpawnTimer = 0.0f;
-                            float margin = 60.0f; // Increased margin for larger elixir
+                            float margin = 160.0f; // increased margin for large elixir (300x300)
                             elixirPos.x = GetRandomValue((int)margin, GetScreenWidth() - (int)margin);
                             elixirPos.y = GetRandomValue((int)margin, GetScreenHeight() - (int)margin);
                             elixirAvailable = true;
@@ -348,7 +348,7 @@ int main(void) {
                             elixirAvailable = false;
                             elixirDurationTimer = 0.0f;
                         } else {
-                            float pickupRadius = 56.0f;
+                            float pickupRadius = 150.0f; // match larger visual size (300x300)
                             if (CheckCollisionCircles(playerPos, 20.0f, elixirPos, pickupRadius)) {
                                 elixirAvailable = false;
                                 elixirReady = true;
@@ -546,17 +546,12 @@ int main(void) {
 
         switch (gameState) {
             case OPENING_SCENE: {
-                // Draw logo full screen
-                float scale = fmaxf((float)GetScreenWidth() / logo.width, (float)GetScreenHeight() / logo.height);
-                float scaledWidth = logo.width * scale;
-                float scaledHeight = logo.height * scale;
-                float offsetX = (GetScreenWidth() - scaledWidth) / 2.0f;
-                float offsetY = (GetScreenHeight() - scaledHeight) / 2.0f;
+                // Draw logo full screen (cover entire window)
                 if (logo.id != 0) {
                     DrawTexturePro(
                         logo,
                         (Rectangle){0, 0, (float)logo.width, (float)logo.height},
-                        (Rectangle){offsetX, offsetY, scaledWidth, scaledHeight},
+                        (Rectangle){0, 0, (float)GetScreenWidth(), (float)GetScreenHeight()},
                         (Vector2){0, 0}, 0.0f, WHITE
                     );
                 } else {
@@ -593,18 +588,18 @@ int main(void) {
                     }
                 }
 
-                // Draw elixir (size: 112x112 pixels)
+                // Draw elixir (large: 300x300 pixels)
                 if (elixirAvailable) {
                     if (elixirTex.id != 0) {
                         DrawTexturePro(
                             elixirTex,
                             (Rectangle){0, 0, (float)elixirTex.width, (float)elixirTex.height},
-                            (Rectangle){elixirPos.x, elixirPos.y, 112.0f, 112.0f},
-                            (Vector2){56.0f, 56.0f}, 0.0f, WHITE
+                            (Rectangle){elixirPos.x, elixirPos.y, 300.0f, 300.0f},
+                            (Vector2){150.0f, 150.0f}, 0.0f, WHITE
                         );
                     } else {
-                        DrawCircleV(elixirPos, 56.0f, PURPLE);
-                        DrawText("E", (int)elixirPos.x-24, (int)elixirPos.y-28, 48, WHITE);
+                        DrawCircleV(elixirPos, 150.0f, PURPLE);
+                        DrawText("E", (int)elixirPos.x - 36, (int)elixirPos.y - 42, 72, WHITE);
                     }
                 }
 
