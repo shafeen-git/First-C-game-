@@ -73,6 +73,16 @@ Texture2D logo;
 Texture2D balhTex;
 Texture2D obstacleTex;
 
+// Elixir buff system
+Texture2D elixirTex;
+bool     elixirAvailable = false; // Elixir is on the map
+Vector2  elixirPos = {0};
+bool     elixirReady = false;     // Player has collected elixir
+float    elixirSpawnTimer = 0.0f; // Time since last spawn attempt
+float    elixirDurationTimer = 0.0f; // Time elixir has been on map
+float    elixirSpawnInterval = 0.0f; // Set by difficulty (5s Medium, 7s Hard)
+const float ELIXIR_DURATION = 8.0f;   // Elixir lasts 8 seconds
+
 // Bowling state
 Vector2  ballPos;
 float    t = 0.0f;
@@ -95,6 +105,13 @@ Sound    hitSound;
 Texture2D bowlingBg;
 
 // ------------ Helpers ------------
+static void ResetElixirState(void) {
+    elixirAvailable = false;
+    elixirReady = false;
+    elixirSpawnTimer = 0.0f;
+    elixirDurationTimer = 0.0f;
+}
+
 static void ResetGame(Difficulty difficulty) {
     playerPos = (Vector2){400, 300};
     score = 0;
@@ -102,6 +119,7 @@ static void ResetGame(Difficulty difficulty) {
     for (int i = 0; i < MAX_ENEMIES;  i++) enemies[i].active = false;
     for (int i = 0; i < MAX_BULLETS;  i++) bullets[i].active = false;
     for (int i = 0; i < MAX_OBSTACLES; i++) obstacles[i].active = false;
+    ResetElixirState();
 }
 
 static void SpawnEnemy(Difficulty difficulty) {
@@ -239,6 +257,9 @@ int main(void) {
     obstacleTex = LoadTextureFromImage(rockImg);
     UnloadImage(rockImg);
 
+    if (!FileExists("resources/elixir.png")) TraceLog(LOG_WARNING, "elixir.png missing! A fallback circle will be drawn.");
+    elixirTex = LoadTexture("resources/elixir.png");
+
     hitSound = LoadSound("resources/strike.wav");
     bowlingBg = LoadTexture("resources/background.png");
 
@@ -256,6 +277,7 @@ int main(void) {
     float enemySpawnTimer = 0.0f;
 
     ResetBowling();
+    ResetElixirState();
 
     while (!WindowShouldClose()) {
         float dt = GetFrameTime();
@@ -272,6 +294,7 @@ int main(void) {
                 if (CheckCollisionPointRec(GetMousePosition(), startBtn) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
                     ResetGame(selectedDifficulty);
                     if (selectedDifficulty == DIFFICULTY_HARD) SpawnObstacles();
+                    elixirSpawnInterval = (selectedDifficulty == DIFFICULTY_MEDIUM) ? 5.0f : (selectedDifficulty == DIFFICULTY_HARD) ? 7.0f : 0.0f;
                     secondChanceUsed = false;
                     gameState = GAMEPLAY;
                 }
@@ -305,6 +328,41 @@ int main(void) {
                         enemySpawnTimer = 0;
                     }
 
+                    // Elixir spawn logic
+                    if (selectedDifficulty != DIFFICULTY_EASY && !elixirAvailable && !elixirReady && elixirSpawnInterval > 0.0f) {
+                        elixirSpawnTimer += dt;
+                        if (elixirSpawnTimer >= elixirSpawnInterval) {
+                            elixirSpawnTimer = 0.0f;
+                            float margin = 60.0f; // Increased margin for larger elixir
+                            elixirPos.x = GetRandomValue((int)margin, GetScreenWidth() - (int)margin);
+                            elixirPos.y = GetRandomValue((int)margin, GetScreenHeight() - (int)margin);
+                            elixirAvailable = true;
+                            elixirDurationTimer = 0.0f;
+                        }
+                    }
+
+                    // Elixir duration and collection
+                    if (elixirAvailable) {
+                        elixirDurationTimer += dt;
+                        if (elixirDurationTimer >= ELIXIR_DURATION) {
+                            elixirAvailable = false;
+                            elixirDurationTimer = 0.0f;
+                        } else {
+                            float pickupRadius = 56.0f;
+                            if (CheckCollisionCircles(playerPos, 20.0f, elixirPos, pickupRadius)) {
+                                elixirAvailable = false;
+                                elixirReady = true;
+                                elixirDurationTimer = 0.0f;
+                            }
+                        }
+                    }
+
+                    // Use elixir to destroy all enemies
+                    if (elixirReady && IsKeyPressed(KEY_S)) {
+                        for (int i = 0; i < MAX_ENEMIES; i++) enemies[i].active = false;
+                        elixirReady = false;
+                    }
+
                     for (int i = 0; i < MAX_ENEMIES; i++) {
                         if (enemies[i].active) {
                             Vector2 direction = Vector2Subtract(playerPos, enemies[i].position);
@@ -315,6 +373,7 @@ int main(void) {
                             if (CheckCollisionCircles(enemies[i].position, 20, playerPos, 20)) {
                                 if (selectedDifficulty == DIFFICULTY_HARD && !secondChanceUsed) {
                                     ResetBowling();
+                                    ResetElixirState();
                                     gameState = MINI_GAME;
                                 } else {
                                     gameOver = true;
@@ -345,6 +404,7 @@ int main(void) {
                             if (obstacles[i].active && CheckCollisionRecs(playerRect, obstacles[i].rect)) {
                                 if (!secondChanceUsed) {
                                     ResetBowling();
+                                    ResetElixirState();
                                     gameState = MINI_GAME;
                                 } else {
                                     gameOver = true;
@@ -486,7 +546,25 @@ int main(void) {
 
         switch (gameState) {
             case OPENING_SCENE: {
-                DrawTexture(logo, GetScreenWidth()/2 - logo.width/2, 50, WHITE);
+                // Draw logo full screen
+                float scale = fmaxf((float)GetScreenWidth() / logo.width, (float)GetScreenHeight() / logo.height);
+                float scaledWidth = logo.width * scale;
+                float scaledHeight = logo.height * scale;
+                float offsetX = (GetScreenWidth() - scaledWidth) / 2.0f;
+                float offsetY = (GetScreenHeight() - scaledHeight) / 2.0f;
+                if (logo.id != 0) {
+                    DrawTexturePro(
+                        logo,
+                        (Rectangle){0, 0, (float)logo.width, (float)logo.height},
+                        (Rectangle){offsetX, offsetY, scaledWidth, scaledHeight},
+                        (Vector2){0, 0}, 0.0f, WHITE
+                    );
+                } else {
+                    DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), DARKGRAY);
+                    DrawText("Logo missing!", GetScreenWidth()/2 - 100, GetScreenHeight()/2, 20, RED);
+                }
+
+                // Draw UI elements on top
                 DrawTextEx(emojiFont, "Select Game Difficulty", (Vector2){GetScreenWidth()/2 - 160, 250}, 30, 2, DARKGRAY);
 
                 DrawRectangleRec(easyBtn, selectedDifficulty == DIFFICULTY_EASY ? LIME : LIGHTGRAY);
@@ -513,6 +591,26 @@ int main(void) {
                     if (enemies[i].active) {
                         DrawTexture(pokeballTex, enemies[i].position.x - pokeballTex.width/2, enemies[i].position.y - pokeballTex.height/2, WHITE);
                     }
+                }
+
+                // Draw elixir (size: 112x112 pixels)
+                if (elixirAvailable) {
+                    if (elixirTex.id != 0) {
+                        DrawTexturePro(
+                            elixirTex,
+                            (Rectangle){0, 0, (float)elixirTex.width, (float)elixirTex.height},
+                            (Rectangle){elixirPos.x, elixirPos.y, 112.0f, 112.0f},
+                            (Vector2){56.0f, 56.0f}, 0.0f, WHITE
+                        );
+                    } else {
+                        DrawCircleV(elixirPos, 56.0f, PURPLE);
+                        DrawText("E", (int)elixirPos.x-24, (int)elixirPos.y-28, 48, WHITE);
+                    }
+                }
+
+                // Show elixir status
+                if (elixirReady) {
+                    DrawText("Elixir READY! Press S to clear enemies!", 20, 50, 18, YELLOW);
                 }
 
                 if (selectedDifficulty == DIFFICULTY_HARD) {
@@ -585,8 +683,9 @@ int main(void) {
     UnloadTexture(balhTex);
     if (obstacleTex.id != 0) UnloadTexture(obstacleTex);
     if (bowlingBg.id != 0) UnloadTexture(bowlingBg);
+    if (elixirTex.id != 0) UnloadTexture(elixirTex);
     if (hitSound.frameCount > 0) UnloadSound(hitSound);
     CloseAudioDevice();
     CloseWindow();
     return 0;
-}// shafeen
+}
