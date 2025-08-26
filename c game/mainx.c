@@ -104,6 +104,10 @@ bool     luckyStrike = false;
 Sound    hitSound;
 Texture2D bowlingBg;
 
+// NEW: Logo timer
+float    logoTimer = 0.0f;
+const float LOGO_DURATION = 8.0f; // Logo displays for 8 seconds
+
 // ------------ Helpers ------------
 static void ResetElixirState(void) {
     elixirAvailable = false;
@@ -285,6 +289,8 @@ int main(void) {
         // ---------------- UPDATE ----------------
         switch (gameState) {
             case OPENING_SCENE: {
+                // NEW: Update logo timer
+                logoTimer += dt;
                 if (CheckCollisionPointRec(GetMousePosition(), easyBtn) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
                     selectedDifficulty = DIFFICULTY_EASY;
                 if (CheckCollisionPointRec(GetMousePosition(), mediumBtn) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
@@ -297,6 +303,7 @@ int main(void) {
                     elixirSpawnInterval = (selectedDifficulty == DIFFICULTY_MEDIUM) ? 5.0f : (selectedDifficulty == DIFFICULTY_HARD) ? 7.0f : 0.0f;
                     secondChanceUsed = false;
                     gameState = GAMEPLAY;
+                    logoTimer = 0.0f; // Reset logo timer on start
                 }
             } break;
 
@@ -333,7 +340,7 @@ int main(void) {
                         elixirSpawnTimer += dt;
                         if (elixirSpawnTimer >= elixirSpawnInterval) {
                             elixirSpawnTimer = 0.0f;
-                            float margin = 160.0f; // increased margin for large elixir (300x300)
+                            float margin = 40.0f;
                             elixirPos.x = GetRandomValue((int)margin, GetScreenWidth() - (int)margin);
                             elixirPos.y = GetRandomValue((int)margin, GetScreenHeight() - (int)margin);
                             elixirAvailable = true;
@@ -348,7 +355,7 @@ int main(void) {
                             elixirAvailable = false;
                             elixirDurationTimer = 0.0f;
                         } else {
-                            float pickupRadius = 150.0f; // match larger visual size (300x300)
+                            float pickupRadius = 24.0f;
                             if (CheckCollisionCircles(playerPos, 20.0f, elixirPos, pickupRadius)) {
                                 elixirAvailable = false;
                                 elixirReady = true;
@@ -535,6 +542,7 @@ int main(void) {
                         ResetGame(selectedDifficulty);
                         secondChanceUsed = false;
                         gameState = OPENING_SCENE;
+                        logoTimer = 0.0f; // Reset logo timer on home
                     }
                 }
             } break;
@@ -546,20 +554,10 @@ int main(void) {
 
         switch (gameState) {
             case OPENING_SCENE: {
-                // Draw logo full screen (cover entire window)
-                if (logo.id != 0) {
-                    DrawTexturePro(
-                        logo,
-                        (Rectangle){0, 0, (float)logo.width, (float)logo.height},
-                        (Rectangle){0, 0, (float)GetScreenWidth(), (float)GetScreenHeight()},
-                        (Vector2){0, 0}, 0.0f, WHITE
-                    );
-                } else {
-                    DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), DARKGRAY);
-                    DrawText("Logo missing!", GetScreenWidth()/2 - 100, GetScreenHeight()/2, 20, RED);
+                // NEW: Only draw logo if within 8 seconds
+                if (logoTimer < LOGO_DURATION) {
+                    DrawTexture(logo, GetScreenWidth()/2 - logo.width/2, 50, WHITE);
                 }
-
-                // Draw UI elements on top
                 DrawTextEx(emojiFont, "Select Game Difficulty", (Vector2){GetScreenWidth()/2 - 160, 250}, 30, 2, DARKGRAY);
 
                 DrawRectangleRec(easyBtn, selectedDifficulty == DIFFICULTY_EASY ? LIME : LIGHTGRAY);
@@ -588,18 +586,18 @@ int main(void) {
                     }
                 }
 
-                // Draw elixir (large: 300x300 pixels)
+                // Draw elixir
                 if (elixirAvailable) {
                     if (elixirTex.id != 0) {
                         DrawTexturePro(
                             elixirTex,
                             (Rectangle){0, 0, (float)elixirTex.width, (float)elixirTex.height},
-                            (Rectangle){elixirPos.x, elixirPos.y, 300.0f, 300.0f},
-                            (Vector2){150.0f, 150.0f}, 0.0f, WHITE
+                            (Rectangle){elixirPos.x, elixirPos.y, 28.0f, 28.0f},
+                            (Vector2){14.0f, 14.0f}, 0.0f, WHITE
                         );
                     } else {
-                        DrawCircleV(elixirPos, 150.0f, PURPLE);
-                        DrawText("E", (int)elixirPos.x - 36, (int)elixirPos.y - 42, 72, WHITE);
+                        DrawCircleV(elixirPos, 12.0f, PURPLE);
+                        DrawText("E", (int)elixirPos.x-6, (int)elixirPos.y-8, 16, WHITE);
                     }
                 }
 
